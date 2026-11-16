@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { OFFLINE_PATH } from "@/components/offline/offline-client";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { MenuShell } from "@/components/menu-shell";
@@ -953,6 +954,9 @@ function SessionsSidebar() {
 export function AppShell({ children }: { children: React.ReactNode }) {
 	const [contentRoot, setContentRoot] = useState<HTMLElement | null>(null);
 	const pathname = usePathname();
+	// The offline view (offline wave A) reads only the device's copy: no
+	// sidebar, shortcuts or plugin widgets — they all talk to the server.
+	if (pathname === OFFLINE_PATH) return <>{children}</>;
 	return (
 		<HostRouteLifetimeProvider pathname={pathname}>
 		<HostContentRootContext.Provider value={contentRoot}>

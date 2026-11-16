@@ -162,6 +162,14 @@ export interface GraphStore {
 	}): void;
 }
 
+/** Text snapshots of imported notes (offline reading). Keyed by the notes
+ *  source id; absent = imported before snapshots existed (or removed). */
+export interface SourceTextStore {
+	write(sourceId: string, text: string): void;
+	read(sourceId: string): string | null;
+	remove(sourceIds: ReadonlySet<string>): void;
+}
+
 /** Separate from graph ledgers and source identity, for future shared views. */
 export interface SourceOrganizationStore {
 	read(): import("./source-organization.ts").SourceOrganization;

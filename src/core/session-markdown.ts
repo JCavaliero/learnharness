@@ -46,6 +46,11 @@ export interface MarkdownContext {
 	/** toolCallId → the call part's name + arguments. */
 	calls: Map<string, { name: string; args: Record<string, unknown> | undefined }>;
 	failedOutputCalls?: ReadonlySet<string>;
+	/** Reading mode (offline wave A, 2026-11-16): answered quiz blocks also
+	 *  show the options (your pick, the correct one) and the explanation; an
+	 *  answered recall check shows the committed answer. Off for the
+	 *  extractor and the export — their documents stay byte-identical. */
+	reading?: boolean;
 }
 
 function markdownContext(messages: ReadonlyArray<LhMessage>): MarkdownContext {
@@ -71,6 +76,30 @@ function markdownContext(messages: ReadonlyArray<LhMessage>): MarkdownContext {
 function outcomeLabel(outcome: string): string {
 	const spaced = outcome.replace(/([a-z])([A-Z])/g, (_, lo: string, hi: string) => `${lo} ${hi.toLowerCase()}`);
 	return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
+
+/** Reading-mode lines for an answered quiz / recall check: the option
+ *  list (✓ correct, your picks marked) and the explanation, or the
+ *  committed answer. Reads only the answer record's rendering snapshot. */
+function readingDetail(details: unknown): string[] {
+	const d = (details ?? {}) as Partial<{
+		options: { index: number; label: string }[];
+		answers: { index: number }[];
+		correctIndices: number[];
+		explanation: string;
+		committed: string;
+	}>;
+	const lines: string[] = [];
+	if (Array.isArray(d.options) && d.options.length > 0) {
+		const picked = new Set(Array.isArray(d.answers) ? d.answers.map((a) => a.index) : []);
+		const correct = new Set(Array.isArray(d.correctIndices) ? d.correctIndices : []);
+		lines.push(d.options.map((o) =>
+			`- ${correct.has(o.index) ? "✓ " : ""}${o.label}${picked.has(o.index) ? " *(your answer)*" : ""}`,
+		).join("\n"));
+	}
+	if (typeof d.explanation === "string" && d.explanation.trim()) lines.push(`**Explanation:** ${d.explanation.trim()}`);
+	if (typeof d.committed === "string" && d.committed.trim()) lines.push(`**Model answer:** ${d.committed.trim()}`);
+	return lines;
 }
 
 /** One tool result's learner-visible outcome, rendered as body lines. */
@@ -125,6 +154,7 @@ function toolResultBody(result: ToolResultMessage, ctx?: MarkdownContext): { hea
 		else if (out?.correct === false) body.push("The learner answered incorrectly.");
 		else if (typeof out?.text === "string" && out.text.trim()) body.push(`The learner answered in his own words: ${out.text.trim()}`);
 		if (typeof out?.note === "string" && out.note) body.push(`*(his thinking: ${out.note})*`);
+		if (ctx?.reading === true && out?.dismissed !== true) body.push(...readingDetail(result.details));
 		return { heading, body };
 	}
 
@@ -225,11 +255,11 @@ export function messageMarkdown(
  */
 export function sessionMarkdown(
 	messages: ReadonlyArray<LhMessage>,
-	opts: { title?: string; anchors?: boolean } = {},
+	opts: { title?: string; anchors?: boolean; reading?: boolean } = {},
 ): string {
 	const blocks: string[] = [];
 	if (opts.title !== undefined && opts.title.length > 0) blocks.push(`# ${opts.title}`);
-	const ctx = markdownContext(messages);
+	const ctx = { ...markdownContext(messages), ...(opts.reading ? { reading: true } : {}) };
 	for (const message of messages) {
 		const block = messageMarkdown(message, (message as { id?: string }).id ?? "", opts.anchors ?? true, ctx);
 		if (block !== null) blocks.push(block);

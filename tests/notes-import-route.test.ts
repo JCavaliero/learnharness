@@ -12,7 +12,15 @@ import { tinyPdf } from "./helpers/tiny-pdf.ts";
 import { MAX_IMPORT_BODY_BYTES, MAX_IMPORT_BYTES } from "../lib/notes-import-limits.ts";
 
 const original = extraction.importNotes;
-after(() => { extraction.importNotes = original; });
+// Offline snapshots (wave A): in memory here, never the real data dir.
+const originalTextStore = stores.sourceTextStore;
+const snapshots = new Map<string, string>();
+stores.sourceTextStore = {
+	write: (id, text) => { snapshots.set(id, text); },
+	read: (id) => snapshots.get(id) ?? null,
+	remove: (ids) => { for (const id of ids) snapshots.delete(id); },
+};
+after(() => { extraction.importNotes = original; stores.sourceTextStore = originalTextStore; });
 function request(names: string[]) {
 	const form = new FormData();
 	for (const name of names) form.append("files", new File(["identical text"], name));
@@ -299,4 +307,18 @@ it("malformed or proxy-truncated multipart is refused before any file enters the
 		assert.deepEqual(await response.json(), { results: [], error: "Could not read the upload. It may be incomplete; please select the files again." });
 	}
 	assert.equal(calls, 0);
+});
+
+it("an accepted file's text is snapshotted for offline reading under its source id; refused files are not", async () => {
+	snapshots.clear();
+	extraction.importNotes = async () => ({ nodes: 0, chains: 0 });
+	const form = new FormData();
+	form.append("files", new File(["# Offline notes\nbody"], "offline.md"));
+	form.append("files", new File([new Uint8Array([0x61, 0, 0x62])], "binary.md"));
+	const response = await POST(new Request("http://localhost/api/graph/import", { method: "POST", body: form }));
+	assert.equal(response.status, 200);
+	const { notesSourceId } = await import("../src/server/notes-source-id.ts");
+	assert.equal(snapshots.get(notesSourceId("offline.md")), "# Offline notes\nbody");
+	assert.equal(snapshots.has(notesSourceId("binary.md")), false);
+	assert.equal(snapshots.size, 1);
 });

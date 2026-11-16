@@ -14,13 +14,16 @@
  * complete text or encoding validation. These refusals, and PDFs with
  * nothing to extract, occur before any source record or model call.
  *
+ * Each accepted file's text is also snapshotted (stores.sourceTextStore)
+ * for offline reading; extraction never reads the snapshot.
+ *
  * Small concurrency cap: the model calls are the slow part, and a burst of
  * 25 simultaneous runs would trip provider rate limits — a 3-wide worker
  * pool keeps the run registry (the dock's status chips) and the ledgers
  * healthy. The dock's chips + graph refetch track progress live through
  * /api/graph/status, as with session runs.
  */
-import { convertPdf, extraction, joinPages, NotesImportError, sourceDirectory } from "@/src/server";
+import { convertPdf, extraction, joinPages, notesSourceId, NotesImportError, sourceDirectory, stores } from "@/src/server";
 import { IMPORT_EXTENSIONS, MAX_IMPORT_BODY_BYTES, MAX_IMPORT_BYTES, UNSUPPORTED_TYPE_MESSAGE, validNotesPath } from "@/lib/notes-import-limits.ts";
 import { FormBodyLimitError, readBoundedFormData } from "@/lib/bounded-form-data.ts";
 import {
@@ -123,6 +126,11 @@ export async function POST(request: Request) {
 					continue;
 				}
 				sourceDirectory.registerImport(filePath);
+				// Offline reading (wave A): the text as imported, readable on a tablet
+				// even when the original file is elsewhere.
+				// A failed snapshot never blocks the import itself.
+				try { stores.sourceTextStore.write(notesSourceId(filePath), notes.text); }
+				catch (err) { console.error(`[import ${filePath}] offline snapshot failed:`, err); }
 				const stats = await extraction.importNotes({ filePath, text: notes.text });
 				results.push({ filePath, requestIndex, outcome: "completed", ok: true, stats, ...(notes.notice ? { notice: notes.notice } : {}) });
 			} catch (err) {
