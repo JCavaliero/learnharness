@@ -55,6 +55,7 @@ import { KeysSection } from "./keys-section.tsx";
 import { Hint } from "@/components/ui/hint";
 import { AppearanceSection, GraphSection } from "./appearance-section.tsx";
 import { KeyboardSection } from "./keyboard-section.tsx";
+import { OfflineSection } from "./offline-section.tsx";
 import { PluginsSection } from "./plugins-section.tsx";
 import { PluginSettingsPage } from "./plugin-settings-page.tsx";
 import { usePlugins } from "@/components/plugins";
@@ -454,6 +455,15 @@ export function SettingsDialogBody({
 											void write("general", { ...record.general, autoUpdate: on })
 										}
 									/>
+								</SettingsSection>
+							)}
+							{active === "general" && (
+								<SettingsSection
+									title="Offline"
+									hint="Stored on this device"
+									testid="section-offline"
+								>
+									<OfflineSection />
 								</SettingsSection>
 							)}
 							{active === "keys" && (

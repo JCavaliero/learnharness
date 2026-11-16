@@ -79,6 +79,11 @@ export const LEDGER_FILES = {
  * log. Read-modify-write like a chat file, not append-only like the ledgers.
  */
 export const SOURCES_FILE = path.join(/* turbopackIgnore: true */ PATHS.graph, "sources.json");
+/** Offline reading (offline wave A, 2026-11-16): one text snapshot per
+ *  imported notes source, `<sourceId>.md`, written at import time so the
+ *  tablet's offline copy can read notes whose originals live elsewhere.
+ *  Not a ledger and not extraction input — presentation only. */
+export const SOURCE_TEXT_DIR = path.join(/* turbopackIgnore: true */ PATHS.graph, "source-text");
 /** Presentation-only source names/folder placement; never extraction identity. */
 export const SOURCE_ORGANIZATION_FILE = path.join(/* turbopackIgnore: true */ PATHS.graph, "source-organization.json");
 /** The layout ledger (read-modify-write like sources.json): nodeId →
