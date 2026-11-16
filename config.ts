@@ -61,7 +61,9 @@ export type ModelRole =
 	| "auditor"
 	| "sideQuestion"
 	/** Offline wave B: grades free-form answers written on the tablet. */
-	| "offlineGrader";
+	| "offlineGrader"
+	/** Offline wave C: writes offline practice packs. */
+	| "packAuthor";
 
 /**
  * The LIVE graph store (src/store/graph.ts) — owned by the app's extraction

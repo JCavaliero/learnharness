@@ -27,6 +27,7 @@ import { listJobs } from "./jobs.ts";
 import { jobCost } from "./pricing.ts";
 import { pluginWorkerActivities, type PluginWorkerActivity } from "./plugin-worker-activity.ts";
 import type { JobRecord } from "../core/contracts.ts";
+import type { OfflinePacks } from "./offline-packs.ts";
 
 export { abortExtraction, extractionStatuses, type ExtractionPhase, type RunningExtraction } from "../agent/subagents/extraction.ts";
 export { chatStore } from "../store/chats.ts";
@@ -73,10 +74,23 @@ export interface ActivityExtraction {
  *  graph changed underneath me" (a merge landed, a deletion purged) and
  *  refetch clusters/layout. Reads never move it; the DELETE response
  *  returns the same stamp. */
+/** One offline-pack run in the dock (wave C). */
+export interface ActivityPack {
+	id: string;
+	chatId: string;
+	title: string;
+	startedAt: number;
+	status: "running" | "failed";
+	error?: string;
+	model?: string;
+	steps: number;
+}
+
 export function activityFeed(): {
 	jobs: ActivityJob[];
 	pluginWorkers: ActivityPluginWorker[];
 	extractions: ActivityExtraction[];
+	packs: ActivityPack[];
 	graphRevision: number;
 } {
 	const chats = chatStore.listChats();
@@ -123,6 +137,12 @@ export function activityFeed(): {
 		jobs,
 		pluginWorkers,
 		extractions: extractions.sort((a, b) => a.startedAt - b.startedAt),
+		// Offline packs (wave C): read through the process-global registry
+		// (chat-handler owns it) — no import of the composition root here.
+		packs: ((globalThis as { __lhOfflinePacks?: OfflinePacks }).__lhOfflinePacks?.activity() ?? []).map((r) => ({
+			id: r.id, chatId: r.chatId, title: r.title, startedAt: r.startedAt, status: r.status,
+			...(r.error ? { error: r.error } : {}), ...(r.model ? { model: r.model } : {}), steps: r.steps,
+		})),
 		graphRevision: graphRevision(),
 	};
 }

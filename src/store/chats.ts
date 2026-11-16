@@ -16,6 +16,7 @@ import type { ChatStore } from "../core/ports.ts";
 import type { ChatRecord, ChatSettings, ChatSummary, ExtractionRunUsage, ImageSnapshot, PlanTree, SideChatThread, TurnUsage } from "../core/contracts.ts";
 import { CURRENT_CHAT_VERSION } from "../core/contracts.ts";
 import type { LhMessage } from "../core/native-messages.ts";
+import { packsRev, type OfflinePack } from "../core/offline-packs.ts";
 import { activeProblemOf, danglingQuestionOf } from "../core/native-messages.ts";
 import { phaseAt3Lh } from "../core/phases.ts";
 import { removeLeftoverTemps, writeFileAtomicSync } from "./atomic-write.ts";
@@ -86,7 +87,7 @@ function listChats(): ChatSummary[] {
 			.filter((f) => f.endsWith(".json"))
 			.map((f) => getChat(f.slice(0, -5)))
 			.filter((r): r is ChatRecord => r !== null)
-			.map(({ messages, tree, turns, extractions, imageSnapshots: _imageSnapshots, sideChats: _sideChats, ...summary }) => {
+			.map(({ messages, tree, turns, extractions, imageSnapshots: _imageSnapshots, sideChats: _sideChats, offlinePacks, ...summary }) => {
 				// Per-record isolation (Wave B): a record whose messages fail the
 				// projection (e.g. pre-Wave-B UIMessage-format scratch — the
 				// zero-back-compat wipe makes these "corrupt") must not blank the
@@ -99,6 +100,7 @@ function listChats(): ChatSummary[] {
 						...summary,
 						// Normalized kind: absent record field reads as teach.
 						kind: summary.kind ?? "teach",
+						...(offlinePacks?.length ? { offlinePacksRev: packsRev(offlinePacks) } : {}),
 						messageCount: messages.length,
 						// Record-derived status for the session picker: phase from the
 						// transcript's explicit events (probe_done concluded / verdict
@@ -243,6 +245,17 @@ function updateSideChats(id: string, update: (threads: SideChatThread[]) => Side
 	return next;
 }
 
+/** Offline packs (wave C): same read-modify-write discipline as side chats. */
+function updateOfflinePacks(id: string, update: (packs: OfflinePack[]) => OfflinePack[]): OfflinePack[] | null {
+	const record = getChat(id);
+	if (!record) return null;
+	const next = update(record.offlinePacks ?? []);
+	if (next.length > 0) record.offlinePacks = next;
+	else delete record.offlinePacks;
+	writeChat(record);
+	return next;
+}
+
 export const chatStore: ChatStore = {
 	createChat,
 	getChat,
@@ -256,4 +269,5 @@ export const chatStore: ChatStore = {
 	appendTurnUsage,
 	appendExtractionUsage,
 	updateSideChats,
+	updateOfflinePacks,
 };

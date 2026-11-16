@@ -73,7 +73,10 @@ export function usePracticeData(copy: OfflineCopy) {
 		const items = [...copy.sessions.values()].flatMap((s) => s.practice ?? []);
 		const recorded = [...copy.sessions.values()].flatMap((s) => s.attempts ?? []);
 		const attempts = mergeAttemptRecords(recorded, server, local);
-		return { items, attempts, states: leitnerStates(items, attempts) };
+		const packs = [...copy.sessions.values()]
+			.flatMap((s) => (s.packs ?? []).map((p) => ({ ...p, sessionTitle: s.title })))
+			.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+		return { items, attempts, states: leitnerStates(items, attempts), packs };
 	}, [copy, server, local]);
 }
 
@@ -111,6 +114,8 @@ export function PracticeTab({ data, onRun }: { data: PracticeData; onRun: (mode:
 				)}
 			</section>
 
+			<PacksList packs={data.packs} />
+
 			<section>
 				<h2 className="mb-2 text-xs uppercase tracking-widest text-muted-foreground">Your written answers</h2>
 				{results.length === 0 ? (
@@ -122,6 +127,55 @@ export function PracticeTab({ data, onRun }: { data: PracticeData; onRun: (mode:
 				)}
 			</section>
 		</div>
+	);
+}
+
+/** Offline packs (wave C): the generated packs, newest first. Delete
+ *  (online only) drops a pack's unanswered items. */
+function PacksList({ packs }: { packs: PracticeData["packs"] }) {
+	const status = useOfflineStatus();
+	const [busy, setBusy] = useState<string | null>(null);
+	const [error, setError] = useState<string | null>(null);
+	if (packs.length === 0) return null;
+	const remove = async (chatId: string, packId: string) => {
+		if (!window.confirm("Delete this pack? Questions you already answered stay in your reviews.")) return;
+		setBusy(packId); setError(null);
+		try {
+			const res = await fetch(`/api/offline/packs?chatId=${encodeURIComponent(chatId)}&packId=${encodeURIComponent(packId)}`, { method: "DELETE" });
+			if (!res.ok) throw new Error(String(res.status));
+			await syncOfflineCopy();
+		} catch {
+			setError("Could not delete the pack.");
+		} finally { setBusy(null); }
+	};
+	const offline = status.reachable === false;
+	return (
+		<section data-testid="offline-packs">
+			<h2 className="mb-2 text-xs uppercase tracking-widest text-muted-foreground">Packs</h2>
+			{error && <p className="mb-2 text-xs text-error">{error}</p>}
+			<ul className="divide-y divide-border">
+				{packs.map((p) => (
+					<li key={p.id} className="flex items-center justify-between gap-3 py-2">
+						<span className="min-w-0">
+							<span className="block truncate text-sm">{p.sessionTitle}</span>
+							<span className="block text-xs text-muted-foreground">
+								{p.quizzes} {p.quizzes === 1 ? "quiz" : "quizzes"} · {p.problems} {p.problems === 1 ? "problem" : "problems"} · {formatWhen(p.createdAt)}
+							</span>
+						</span>
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							disabled={offline || busy !== null}
+							title={offline ? "Deleting needs your computer" : undefined}
+							onClick={() => void remove(p.chatId, p.id)}
+						>
+							Delete
+						</Button>
+					</li>
+				))}
+			</ul>
+		</section>
 	);
 }
 

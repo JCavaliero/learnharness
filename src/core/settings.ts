@@ -334,6 +334,7 @@ export const ROLE_SLOT: Readonly<Record<ModelRole, ModelSlotName>> = {
 	pdfReader: "vision",
 	sideQuestion: "strong", // the conversation chain, like prober/teacher (resolveSideQuestionSpec)
 	offlineGrader: "cheap", // offline wave B: cheap slot only, no per-role override (owner)
+	packAuthor: "strong", // offline wave C: question authoring stays on the strong tier (owner)
 };
 
 /** General settings — app-level behavior. Version DISPLAY and plans login

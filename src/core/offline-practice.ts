@@ -44,6 +44,8 @@ export interface QuizPracticeItem {
 	explanation: string;
 	/** The plan-tree node slug a teach quiz is tagged with. */
 	nodeId?: string;
+	/** Proposition ids (pack quizzes, wave C). */
+	target?: string[];
 	/** The result when it was first answered in the session. */
 	original: PracticeResult;
 	posedAt: number;
@@ -241,7 +243,7 @@ export interface GraderVerdict {
 export type OfflinePracticeEntry =
 	| {
 			attemptId: string; itemKey: string; kind: "quiz"; answeredAt: string;
-			question: string; nodeId?: string;
+			question: string; nodeId?: string; target?: string[];
 			chosen: string[]; correctLabels: string[]; correct: boolean; explanation: string;
 			dontKnow?: boolean; confidence?: number;
 	  }
@@ -285,7 +287,7 @@ export function offlinePracticeContent(details: OfflinePracticeDetails): string 
 	details.entries.forEach((e, i) => {
 		const n = `${i + 1}.`;
 		if (e.kind === "quiz") {
-			const tag = e.nodeId ? ` [node: ${e.nodeId}]` : "";
+			const tag = e.nodeId ? ` [node: ${e.nodeId}]` : e.target?.length ? ` [targets: ${e.target.join(", ")}]` : "";
 			lines.push(`${n} Quiz${tag}: "${indentRest(e.question)}"`);
 			const chosen = e.dontKnow ? "I don't know" : e.chosen.length > 0 ? e.chosen.map((c) => `"${c}"`).join(", ") : "nothing";
 			const confidence = e.confidence !== undefined ? ` (confidence ${e.confidence}%)` : "";
@@ -366,7 +368,7 @@ export function sittingDetails(s: PendingSitting): OfflinePracticeDetails {
 				const label = (v: string) => item.options.find((o) => o.value === v)?.label ?? v;
 				return {
 					attemptId: attempt.id, itemKey: item.key, kind: "quiz" as const, answeredAt: attempt.answeredAt,
-					question: item.question, ...(item.nodeId ? { nodeId: item.nodeId } : {}),
+					question: item.question, ...(item.nodeId ? { nodeId: item.nodeId } : {}), ...(item.target?.length ? { target: item.target } : {}),
 					chosen: (attempt.selected ?? []).map(label), correctLabels: item.correctValues.map(label),
 					correct: correct === true, explanation: item.explanation,
 					...(attempt.dontKnow ? { dontKnow: true } : attempt.confidence !== undefined ? { confidence: attempt.confidence } : {}),

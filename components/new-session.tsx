@@ -15,6 +15,7 @@ import { useModelSetup, selectedModelUnavailable, openModelPicker, ZeroKeysPill 
 import { StatsBar } from "@/components/stats-bar";
 import { ChainTableOverlay } from "@/components/chain-table.tsx";
 import { ComposerActions, NodePickerControl } from "@/components/composer-actions";
+import { PackageIcon } from "lucide-react";
 import { OPENING_PROMPT_FAILURE } from "@/components/opening-prompt";
 import { SessionStarter } from "@/components/start-session";
 import type { ChatSettings, GraphSnapshot } from "@/src/core";
@@ -22,6 +23,18 @@ import type { ChatSettings, GraphSnapshot } from "@/src/core";
 /** The draft's pick set (owner round 10): the SAME shape the home pick
  *  bar lifts — resolved nodes as the learner SAW them at pick time. */
 export type DraftPick = { id: string; name: string; statement: string };
+
+/** "Offline pack: <topics>" — the first picked names, cut to fit (owner). */
+export function offlinePackTitle(names: readonly string[], max = 60): string {
+	const prefix = "Offline pack: ";
+	let topics = "";
+	for (const name of names) {
+		const next = topics ? `${topics}, ${name}` : name;
+		if (prefix.length + next.length > max) return `${prefix}${topics || name.slice(0, max - prefix.length - 1)}…`;
+		topics = next;
+	}
+	return prefix + topics;
+}
 
 /**
  * The sessionless draft view at /chat/new (owner, 2026-09-13): "+ New
@@ -82,6 +95,7 @@ export function DraftShell({
 	picks = [],
 	onOpenPicker,
 	onClearPicks,
+	onMakePack,
 	overlay,
 }: {
 	busy: boolean;
@@ -105,6 +119,9 @@ export function DraftShell({
 	picks?: DraftPick[];
 	onOpenPicker?: () => void;
 	onClearPicks?: () => void;
+	/** Offline packs (wave C): with picks in a practice draft, make an
+	 *  offline pack from them instead of starting a conversation. */
+	onMakePack?: () => void;
 	/** THE PICKER SLOT (owner round 10b): the chain-table overlay hosts
 	 *  INSIDE the content column's relative container — the same law as
 	 *  the graph view (the overlay fills its column, never the sidebar).
@@ -192,7 +209,21 @@ export function DraftShell({
 							<div className={DOCK}>
 								<ComposerActions
 									picker={(picks.length > 0 || mode === "practice") && (
-										<NodePickerControl count={picks.length} onOpen={onOpenPicker} onClear={onClearPicks} />
+										<>
+											<NodePickerControl count={picks.length} onOpen={onOpenPicker} onClear={onClearPicks} />
+											{mode === "practice" && picks.length > 0 && onMakePack && (
+												<button
+													type="button"
+													data-testid="make-pack-from-picks"
+													disabled={busy}
+													onClick={onMakePack}
+													className="flex items-center gap-1.5 rounded-full border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:border-foreground/40 hover:text-foreground disabled:opacity-50"
+												>
+													<PackageIcon className="size-3.5" />
+													Make offline pack instead
+												</button>
+											)}
+										</>
 									)}
 									setup={setupCta}
 								/>
@@ -328,6 +359,32 @@ export function NewSession({ initialConfigured, mode = "teach" }: { initialConfi
 			});
 	}, [router, configured, zeroKeys, catalog, mode]);
 
+	/** Offline packs (wave C): a practice session titled "Offline pack:
+	 *  <topics>" carrying the picks as its graph context, then the pack run
+	 *  (activity dock). Opens the new session. */
+	const makePack = useCallback(async () => {
+		const chosen = picksRef.current;
+		if (chosen.length === 0 || startingRef.current) return;
+		startingRef.current = true;
+		setBusy(true);
+		setStartError(false);
+		try {
+			const created = await fetch("/api/chats", {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({ title: offlinePackTitle(chosen.map((p) => p.name)), kind: "practice", graphContext: { propositions: chosen } }),
+			});
+			if (!created.ok) throw new Error(String(created.status));
+			const { id } = (await created.json()) as { id: string };
+			await fetch("/api/offline/packs", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ chatId: id }) });
+			router.push(`/chat/${id}`);
+		} catch {
+			startingRef.current = false;
+			setBusy(false);
+			setStartError(true);
+		}
+	}, [router]);
+
 	return (
 		<>
 			<DraftShell
@@ -340,6 +397,7 @@ export function NewSession({ initialConfigured, mode = "teach" }: { initialConfi
 				picks={picks}
 				onOpenPicker={openPicker}
 				onClearPicks={() => applyPicks([])}
+				onMakePack={mode === "practice" ? () => void makePack() : undefined}
 				overlay={
 					// THE PICKER (owner round 10b): hosted INSIDE the content
 					// column — absolute inset-0 resolves to the column's relative

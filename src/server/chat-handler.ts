@@ -16,6 +16,11 @@ import { createJobRunner } from "../agent/subagents/runner.ts";
 import { callUsage, createExtractionPipeline } from "../agent/subagents/extraction.ts";
 import { gradeOfflineAnswer } from "../agent/subagents/offline-grader.ts";
 import { createOfflinePractice, type OfflinePractice } from "./offline-practice.ts";
+import { createOfflinePacks, type OfflinePacks } from "./offline-packs.ts";
+import { writeOfflinePack } from "../agent/subagents/pack-author.ts";
+import { packItemsOf } from "../core/offline-packs.ts";
+import { recordedAttemptsOf } from "../core/offline-practice.ts";
+import { getGraph } from "../core/graph.ts";
 import { subscribe as subscribeServerEvents } from "../core/events.ts";
 import type { ModelRole } from "../../config.ts";
 import {
@@ -163,6 +168,8 @@ export const offlinePractice: OfflinePractice = offlineGlobal.__lhOfflinePractic
 		isSessionBusy: (chatId) => isTurnRunning(chatId) || compactionInFlight(chatId),
 		grade: (input, chatId, onStep) => gradeOfflineAnswer({ input, chatId, engine: resolveEngine("offlineGrader"), onStep }),
 		toCallUsage: callUsage,
+		// Wave C: pack items are answerable like replayed questions.
+		extraItemsOf: (chatId) => packItemsOf(stores.chatStore.getChat(chatId)?.offlinePacks),
 		// record-changed: the session view; chats-changed: the sidebar badge.
 		notify: (chatId) => { emit("record-changed", { chatId }); emit("chats-changed", {}); },
 	});
@@ -172,6 +179,24 @@ export const offlinePractice: OfflinePractice = offlineGlobal.__lhOfflinePractic
 	});
 	return service;
 })();
+
+/** Offline practice packs (wave C): the strong-slot pack author, one run
+ *  per session at a time, shown in the activity dock. One per process. */
+const packsGlobal = globalThis as typeof globalThis & { __lhOfflinePacks?: OfflinePacks };
+export const offlinePacks: OfflinePacks = packsGlobal.__lhOfflinePacks ??= createOfflinePacks({
+	chatStore: stores.chatStore,
+	graphNodes: () => getGraph(stores.graphStore).nodes,
+	write: (material, chatId, signal, onStep) => writeOfflinePack({ material, chatId, signal, engine: resolveEngine("packAuthor"), onStep }),
+	toCallUsage: callUsage,
+	answeredKeys: (chatId) => {
+		const record = stores.chatStore.getChat(chatId);
+		const recorded = record ? recordedAttemptsOf(chatId, record.messages) : [];
+		const pending = offlinePractice.pendingAttemptRecords().filter((a) => a.chatId === chatId);
+		return new Set([...recorded, ...pending].map((a) => a.itemKey));
+	},
+	notify: (chatId) => { emit("record-changed", { chatId }); emit("chats-changed", {}); },
+	activityChanged: () => emit("activity-changed", {}),
+});
 
 // Wake-pipeline wiring (contracts.ts "THE ASYNC PROTOCOL" §4): the pipeline
 // delivers its steers through THIS composition root (one event: the steer

@@ -11,6 +11,7 @@
  */
 import type { ChatKind } from "./contracts/chat.ts";
 import type { AttemptRecord, PracticeItem } from "./offline-practice.ts";
+import type { OfflinePackSummary } from "./offline-packs.ts";
 
 /** One session as the offline view reads it. */
 export interface OfflineSessionDoc {
@@ -27,6 +28,8 @@ export interface OfflineSessionDoc {
 	practice: PracticeItem[];
 	/** Offline attempts already recorded in this session's history. */
 	attempts: AttemptRecord[];
+	/** The session's packs, deleted ones left out (wave C). */
+	packs: OfflinePackSummary[];
 }
 
 /** One imported-notes source as the offline view reads it. */

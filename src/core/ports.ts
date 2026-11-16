@@ -95,6 +95,10 @@ export interface ChatStore {
 	 *  side-chat service announces its own changes. Not conversation
 	 *  activity — updatedAt stays put. */
 	updateSideChats(id: string, update: (threads: SideChatThread[]) => SideChatThread[]): SideChatThread[] | null;
+	/** Read-modify-write the record's offline practice packs (wave C) in one
+	 *  synchronous section. Returns the stored packs, or null when the chat
+	 *  is unknown. Not conversation activity — updatedAt stays put. */
+	updateOfflinePacks(id: string, update: (packs: import("./offline-packs.ts").OfflinePack[]) => import("./offline-packs.ts").OfflinePack[]): import("./offline-packs.ts").OfflinePack[] | null;
 }
 
 // ─── GraphStore — the append-only evidence ledgers (data/graph) ──────────────
