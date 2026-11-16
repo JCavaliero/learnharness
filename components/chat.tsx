@@ -2,6 +2,7 @@
 
 import { createContext, Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { OfflinePracticeCard, OfflineResultsNotice } from "@/components/offline/offline-practice-card";
+import { SessionPackMenu } from "@/components/offline/session-pack-menu";
 import { usePathname } from "next/navigation";
 import { useChatSession } from "@/components/session";
 import { usePlugins } from "./plugins";
@@ -1739,6 +1740,8 @@ export function Chat({
 					) : (
 						<PhaseChip phase={phases.at(-1) ?? "probe"} />
 					)}
+					{/* Offline packs (wave C): the session's "…" menu. */}
+					<SessionPackMenu chatId={chatId} />
 					<PluginSessionTopBarActions readContext={actionContext} captureContext={captureActionContext} refreshRef={refreshPluginActions} />
 				</TopBar>
 

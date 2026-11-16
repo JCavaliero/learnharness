@@ -12,6 +12,7 @@ export * from "./source-organization.ts";
 export * from "./source-deletion.ts";
 export * from "./notes-source-id.ts";
 export * from "./offline-bundle.ts";
+export { PackStartError } from "./offline-packs.ts";
 export { NotesImportError } from "../agent/subagents/extraction.ts";
 export { convertPdf } from "../agent/subagents/pdf-ops.ts";
 export { joinPages } from "../agent/subagents/pdf-markdown.ts";

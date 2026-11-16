@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { ActivityIcon, BotIcon, FileTextIcon, PenToolIcon, PlayIcon, SearchIcon, SquareIcon, WaypointsIcon } from "lucide-react";
+import { ActivityIcon, BotIcon, FileTextIcon, PackageIcon, PenToolIcon, PlayIcon, SearchIcon, SquareIcon, WaypointsIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { CallUsage, JobKind, JobRecord } from "@/src/core";
 import { isModelsRefusal, isProviderKeyRefusal, subscriptionLabel, subscriptionLabels } from "@/src/core";
@@ -57,6 +57,18 @@ export interface FeedJob extends JobRecord {
 	contextLimit: number | null;
 }
 
+/** An offline-pack run (wave C): running, or failed (kept briefly). */
+export interface FeedPack {
+	id: string;
+	chatId: string;
+	title: string;
+	startedAt: number;
+	status: "running" | "failed";
+	error?: string;
+	model?: string;
+	steps: number;
+}
+
 export interface FeedExtraction {
 	/** Unique row id (source id, or "src#i" for chunk jobs). */
 	id: string;
@@ -88,9 +100,11 @@ export interface ActivityFeed {
 	/** Optional for older payloads and consumers; current server always sends it. */
 	pluginWorkers?: FeedPluginWorker[];
 	extractions: FeedExtraction[];
+	/** Optional for older payloads; current server always sends it. */
+	packs?: FeedPack[];
 }
 
-const EMPTY_FEED: ActivityFeed = { jobs: [], pluginWorkers: [], extractions: [] };
+const EMPTY_FEED: ActivityFeed = { jobs: [], pluginWorkers: [], extractions: [], packs: [] };
 
 // ─── The activity feed (composition root: the root layout) ───────────────────
 
@@ -127,7 +141,7 @@ export function ActivityProvider({ children }: { children: React.ReactNode }) {
 				if (res.ok) {
 					const data = (await res.json()) as Partial<ActivityFeed>;
 					if (alive)
-						setFeed({ jobs: data.jobs ?? [], pluginWorkers: data.pluginWorkers ?? [], extractions: data.extractions ?? [] });
+						setFeed({ jobs: data.jobs ?? [], pluginWorkers: data.pluginWorkers ?? [], extractions: data.extractions ?? [], packs: data.packs ?? [] });
 				}
 			} catch {
 				// transport blip: keep the last feed, announce again next event
@@ -187,7 +201,7 @@ export interface ActivityBlob {
 	/** job.id, or the extraction job's row id (source id, or "src#i" for
 	 *  chunk jobs — unique per row, per-chunk jobs owner 2026-09-28). */
 	id: string;
-	process: "job" | "plugin-worker" | "extraction";
+	process: "job" | "plugin-worker" | "extraction" | "pack";
 	/** Sub-agent kind for jobs (extraction blobs have none). */
 	jobKind?: JobKind;
 	/** Extraction phase (extracting/auditing/merging/embedding); jobs carry none. */
@@ -282,6 +296,19 @@ export function toBlobs(feed: ActivityFeed): ActivityBlob[] {
 			cost: null, // extraction runs don't ride the money channel (v1)
 			context: null,
 			activity: "",
+		});
+	}
+	for (const run of feed.packs ?? []) {
+		blobs.push({
+			id: run.id,
+			process: "pack",
+			title: run.title,
+			chatId: run.chatId,
+			startedAt: run.startedAt,
+			cost: null, // billed to the session's cost log, not priced here
+			context: null,
+			activity: run.status === "failed" ? `failed: ${run.error ?? "unknown error"}` : run.steps > 0 ? `writing · ${run.steps} model ${run.steps === 1 ? "call" : "calls"}` : "",
+			model: run.model,
 		});
 	}
 	blobs.sort((a, b) => a.startedAt - b.startedAt);
@@ -422,10 +449,12 @@ function ActivityBlobRow({
 	abortState: AbortState | undefined;
 	onAbort: () => void;
 }) {
-	const Icon = blob.process === "extraction" ? WaypointsIcon : (blob.jobKind && KIND_ICON[blob.jobKind]) || BotIcon;
+	const Icon = blob.process === "extraction" ? WaypointsIcon : blob.process === "pack" ? PackageIcon : (blob.jobKind && KIND_ICON[blob.jobKind]) || BotIcon;
 	const label =
 		blob.process === "extraction"
 			? `Extraction — ${blob.phase ?? "running"}`
+			: blob.process === "pack"
+				? "Offline pack"
 			: blob.jobKind === "research"
 				? "Researcher"
 				: blob.jobKind === "demo"

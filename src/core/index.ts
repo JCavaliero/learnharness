@@ -113,3 +113,5 @@ export * from "./plugin-agents.ts";
 export * from "./offline.ts";
 // offline-practice.ts: offline practice items, attempts, Leitner, the sitting message (pure).
 export * from "./offline-practice.ts";
+// offline-packs.ts: generated offline practice packs (pure).
+export * from "./offline-packs.ts";

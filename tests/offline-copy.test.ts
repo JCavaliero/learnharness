@@ -73,7 +73,7 @@ describe("offline copy contract", () => {
 	});
 
 	it("applies a bundle into a new copy: removals, upserts, input untouched", () => {
-		const doc = (id: string, updatedAt: string) => ({ id, title: id, kind: "teach" as const, createdAt: updatedAt, updatedAt, rev: id + updatedAt, markdown: "", practice: [], attempts: [] });
+		const doc = (id: string, updatedAt: string) => ({ id, title: id, kind: "teach" as const, createdAt: updatedAt, updatedAt, rev: id + updatedAt, markdown: "", practice: [], attempts: [], packs: [] });
 		const copy: Copy = { sessions: new Map([["old", doc("old", "2026-01-01")], ["keep", doc("keep", "2026-01-02")]]), notes: new Map() };
 		const bundle: Bundle = { generatedAt: "now", sessions: [doc("new", "2026-01-03")], notes: [], removedSessions: ["old"], removedNotes: [], pendingAttempts: [] };
 		const next = applyOfflineBundle(copy, bundle);

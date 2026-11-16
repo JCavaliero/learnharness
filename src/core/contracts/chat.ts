@@ -47,6 +47,9 @@ export interface ChatRecord {
 	 * shares one thread. Every main request appends new raw exchanges across
 	 * all threads; already-recorded teacher history is never rewritten. */
 	sideChats?: SideChatThread[];
+	/** Offline practice packs (wave C): generated practice for the tablet.
+	 *  A side record — never part of the agent's history. */
+	offlinePacks?: import("../offline-packs.ts").OfflinePack[];
 	/** Schema version. Absence denotes version 1; writes stamp the current
 	 * supported version. Reads refuse records stamped newer than this build
 	 * so a downgraded app cannot rewrite an unsupported record. */
@@ -310,6 +313,9 @@ export interface ChatSummary {
 	pendingProblem: boolean;
 	/** Saved per-session model/thinking choices included in the list payload. */
 	settings?: ChatSettings;
+	/** Offline packs' change stamp (wave C) — packs change without bumping
+	 *  updatedAt, so the offline copy's rev folds this in. Absent = none. */
+	offlinePacksRev?: string;
 }
 
 /** Session-list row combining a saved summary with live server state.
