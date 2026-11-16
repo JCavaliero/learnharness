@@ -236,6 +236,10 @@ export function messageMarkdown(
 				if (annotation.status === "posed") parts.push(`### Question${anchor}\n\n${annotation.snapshot.input.question}`);
 			}
 		}
+	} else if (message.role === "custom" && message.customType === "offline-practice") {
+		// A graded offline sitting (offline wave B): its model-facing text
+		// is already readable prose — the one visible marker.
+		parts.push(`### Offline practice${anchor}\n\n${message.content.trim()}`);
 	} else if (role === "toolResult") {
 		const result = message as ToolResultMessage;
 		if (result.isError || result.toolName === SEND_TO_USER_TOOL) return null; // retry context or output ack, not learning evidence
@@ -243,7 +247,7 @@ export function messageMarkdown(
 		parts.push(`### ${heading}${anchor}\n\n${citationsToReadableText(body.join("\n\n"))}`);
 	}
 
-	// custom markers are invisible, same as the extraction view.
+	// Other custom markers are invisible, same as the extraction view.
 	return parts.length > 0 ? parts.join("\n\n") : null;
 }
 

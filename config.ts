@@ -32,6 +32,9 @@ export const PATHS = {
 	/** Debug artifacts (env-gated): data/debug/provider-events/<chatId>.jsonl
 	 * raw provider stream recordings (src/agent/provider-events.ts). */
 	debug: path.join(/* turbopackIgnore: true */ DATA_ROOT, "debug"),
+	/** Offline wave B: uploaded offline-practice sittings waiting for
+	 *  grading or for their session to be idle (one JSON file each). */
+	offlinePending: path.join(/* turbopackIgnore: true */ DATA_ROOT, "offline", "pending"),
 } as const;
 
 // ─── Models ────────────────────────────────────────────────────────────────
@@ -56,7 +59,9 @@ export type ModelRole =
 	| "pdfReader"
 	| "extractor"
 	| "auditor"
-	| "sideQuestion";
+	| "sideQuestion"
+	/** Offline wave B: grades free-form answers written on the tablet. */
+	| "offlineGrader";
 
 /**
  * The LIVE graph store (src/store/graph.ts) — owned by the app's extraction

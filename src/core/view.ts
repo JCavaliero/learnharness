@@ -494,6 +494,16 @@ function projectMarker(marker: LhMarkerMessage, out: LhViewMessage[]): void {
 			// loud transcript pills. Its quiet speech-bubble reopens the saved
 			// conversation in the floating/docked companion.
 			return;
+		case "offline-practice": {
+			// A graded offline sitting (offline wave B): a user-side card listing
+			// each answer and its result; the model reads the marker content.
+			out.push({
+				id: marker.id,
+				role: "user",
+				parts: [{ type: "data-offline-practice", id: `op_${marker.id}`, data: marker.details }],
+			});
+			return;
+		}
 		case "problem-dismissed":
 			// UI-only (the ask-style dismissal): the synthesized conclude
 			// pair — which rides the NEXT input — carries the record's face.

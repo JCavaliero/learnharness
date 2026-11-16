@@ -5,5 +5,9 @@ export async function register() {
 		const { initializePlugins } = await import("./src/server/plugins.ts");
 		try { await initializePlugins(); }
 		catch (error) { console.error("[plugins] Initialization failed; plugin management will report the error:", error); }
+		// Offline practice (wave B): resume sittings left grading/waiting by
+		// a previous run. Never blocks startup.
+		try { const { offlinePractice } = await import("./src/server/chat-handler.ts"); void offlinePractice.kick(); }
+		catch (error) { console.error("[offline] Could not resume offline practice:", error); }
 	}
 }

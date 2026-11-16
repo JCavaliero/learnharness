@@ -170,6 +170,14 @@ export interface SourceTextStore {
 	remove(sourceIds: ReadonlySet<string>): void;
 }
 
+/** Offline-practice sittings waiting on the server (offline wave B):
+ *  uploaded attempts being graded or waiting for their session to idle. */
+export interface OfflineSittingStore {
+	list(): import("./offline-practice.ts").PendingSitting[];
+	put(sitting: import("./offline-practice.ts").PendingSitting): void;
+	remove(id: string): void;
+}
+
 /** Separate from graph ledgers and source identity, for future shared views. */
 export interface SourceOrganizationStore {
 	read(): import("./source-organization.ts").SourceOrganization;

@@ -12,7 +12,7 @@
  */
 import { useSyncExternalStore } from "react";
 import { applyOfflineBundle, offlineBundleRequestOf, type OfflineBundle } from "@/src/core";
-import { loadOfflineCopy, loadOfflineMeta, offlineDbAvailable, storeOfflineBundle } from "./offline-db";
+import { listLocalAttempts, loadOfflineCopy, loadOfflineMeta, offlineDbAvailable, storeOfflineBundle, updateLocalAttempts } from "./offline-db";
 
 export interface OfflineStatus {
 	/** null = not yet known (no attempt finished). */
@@ -72,6 +72,9 @@ export function syncOfflineCopy(fetchImpl: typeof fetch = (...args) => fetch(...
 	inFlight = (async () => {
 		setStatus({ syncing: true });
 		try {
+			// Upload answers first, so the bundle that follows lists them.
+			const uploaded = await uploadAttempts(fetchImpl);
+			if (uploaded === "unreachable") { setStatus({ reachable: false }); return; }
 			const copy = await loadOfflineCopy();
 			let res: Response;
 			try {
@@ -95,6 +98,11 @@ export function syncOfflineCopy(fetchImpl: typeof fetch = (...args) => fetch(...
 			// first keeps a malformed bundle from reaching storage.
 			applyOfflineBundle(copy, bundle);
 			await storeOfflineBundle(bundle);
+			// Answers the server now lists are its to keep: drop the local copies.
+			const held = new Set([...(bundle.pendingAttempts ?? []), ...bundle.sessions.flatMap((s) => s.attempts ?? [])].map((a) => a.id));
+			const local = await listLocalAttempts();
+			const drop = local.filter((a) => a.uploaded && held.has(a.id)).map((a) => a.id);
+			if (drop.length > 0) await updateLocalAttempts([], drop);
 			setStatus({
 				reachable: true,
 				error: null,
@@ -111,7 +119,34 @@ export function syncOfflineCopy(fetchImpl: typeof fetch = (...args) => fetch(...
 	return inFlight;
 }
 
+/** Sends answers not uploaded yet. Rejected ones (their item or session is
+ *  gone) are dropped — they can never be recorded. */
+async function uploadAttempts(fetchImpl: typeof fetch): Promise<"ok" | "unreachable" | "failed"> {
+	const pending = (await listLocalAttempts()).filter((a) => !a.uploaded);
+	if (pending.length === 0) return "ok";
+	let res: Response;
+	try {
+		res = await fetchImpl("/api/offline/attempts", {
+			method: "POST",
+			headers: { "content-type": "application/json" },
+			body: JSON.stringify({ attempts: pending.map(({ uploaded: _uploaded, ...a }) => a) }),
+			cache: "no-store",
+		});
+	} catch { return "unreachable"; }
+	if (!res.ok) { setStatus({ error: `Uploading offline answers failed (${res.status}).` }); return "failed"; }
+	const { accepted, rejected } = (await res.json()) as { accepted: string[]; rejected: { id: string; reason: string }[] };
+	await updateLocalAttempts(accepted, rejected.map((r) => r.id));
+	if (rejected.length > 0) console.warn("[offline] answers the server could not record:", rejected);
+	setStatus({ copyVersion: status.copyVersion + 1 });
+	return "ok";
+}
+
 /** After "Clear offline data": the views must forget what they showed. */
 export function noteOfflineCopyCleared(): void {
 	setStatus({ lastSyncAt: null, copyVersion: status.copyVersion + 1 });
+}
+
+/** A local answer was saved: views reload their attempt lists. */
+export function noteOfflineCopyChanged(): void {
+	setStatus({ copyVersion: status.copyVersion + 1 });
 }

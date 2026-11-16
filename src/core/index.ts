@@ -111,3 +111,5 @@ export type * from "./plugin-tree.ts";
 export * from "./plugin-agents.ts";
 // offline.ts: the offline-copy contract (device ⇄ server delta; pure).
 export * from "./offline.ts";
+// offline-practice.ts: offline practice items, attempts, Leitner, the sitting message (pure).
+export * from "./offline-practice.ts";
