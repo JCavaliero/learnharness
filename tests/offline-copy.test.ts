@@ -73,9 +73,9 @@ describe("offline copy contract", () => {
 	});
 
 	it("applies a bundle into a new copy: removals, upserts, input untouched", () => {
-		const doc = (id: string, updatedAt: string) => ({ id, title: id, kind: "teach" as const, createdAt: updatedAt, updatedAt, rev: id + updatedAt, markdown: "" });
+		const doc = (id: string, updatedAt: string) => ({ id, title: id, kind: "teach" as const, createdAt: updatedAt, updatedAt, rev: id + updatedAt, markdown: "", practice: [], attempts: [] });
 		const copy: Copy = { sessions: new Map([["old", doc("old", "2026-01-01")], ["keep", doc("keep", "2026-01-02")]]), notes: new Map() };
-		const bundle: Bundle = { generatedAt: "now", sessions: [doc("new", "2026-01-03")], notes: [], removedSessions: ["old"], removedNotes: [] };
+		const bundle: Bundle = { generatedAt: "now", sessions: [doc("new", "2026-01-03")], notes: [], removedSessions: ["old"], removedNotes: [], pendingAttempts: [] };
 		const next = applyOfflineBundle(copy, bundle);
 		assert.deepEqual(offlineSessionsInOrder(next).map((s) => s.id), ["new", "keep"]);
 		assert.ok(copy.sessions.has("old"), "the input copy is not mutated");
@@ -90,6 +90,8 @@ describe("offline copy contract", () => {
 		assert.equal(first.generatedAt, "2026-11-16T12:00:00.000Z");
 		assert.deepEqual(first.sessions.map((s) => s.id).sort(), ["c1", "c2"]);
 		assert.match(first.sessions.find((s) => s.id === "c1")!.markdown, /\*\*Explanation:\*\* Counting\./);
+		assert.deepEqual(first.sessions.find((s) => s.id === "c1")!.practice.map((p) => [p.key, p.kind, p.original]), [["c1:q1", "quiz", "wrong"]]);
+		assert.deepEqual(first.pendingAttempts, []);
 		assert.equal(first.notes.find((n) => n.id === "src_aaaaaaaaaaaa")!.markdown, "# A");
 		assert.equal(first.notes.find((n) => n.id === "src_bbbbbbbbbbbb")!.markdown, null);
 

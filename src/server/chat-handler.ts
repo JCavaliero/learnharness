@@ -13,7 +13,10 @@ import { chatGPTStreamError } from "../agent/chatgpt-stream.ts";
 import { SubscriptionRequestCycle, type SubscriptionDispatchLifecycle } from "../agent/subscription-request-cycle.ts";
 import { reconstructRequestCause } from "../core/native-messages.ts";
 import { createJobRunner } from "../agent/subagents/runner.ts";
-import { createExtractionPipeline } from "../agent/subagents/extraction.ts";
+import { callUsage, createExtractionPipeline } from "../agent/subagents/extraction.ts";
+import { gradeOfflineAnswer } from "../agent/subagents/offline-grader.ts";
+import { createOfflinePractice, type OfflinePractice } from "./offline-practice.ts";
+import { subscribe as subscribeServerEvents } from "../core/events.ts";
 import type { ModelRole } from "../../config.ts";
 import {
 	deliverJobResult,
@@ -147,6 +150,28 @@ export const extraction = createExtractionPipeline({
 		providerKeyPresent(provider) ? null : providerKeyMissingEnvelope(provider, [tier]),
 });
 
+
+/** Offline practice (offline wave B): uploaded tablet attempts, graded by
+ *  the cheap-slot grader, appended to their session when it is idle. */
+// ONE instance per process (globalThis — Next may evaluate this module in
+// several bundles; two instances would grade the same sitting twice).
+const offlineGlobal = globalThis as typeof globalThis & { __lhOfflinePractice?: OfflinePractice };
+export const offlinePractice: OfflinePractice = offlineGlobal.__lhOfflinePractice ??= (() => {
+	const service = createOfflinePractice({
+		chatStore: stores.chatStore,
+		sittings: stores.offlineSittingStore,
+		isSessionBusy: (chatId) => isTurnRunning(chatId) || compactionInFlight(chatId),
+		grade: (input, chatId, onStep) => gradeOfflineAnswer({ input, chatId, engine: resolveEngine("offlineGrader"), onStep }),
+		toCallUsage: callUsage,
+		// record-changed: the session view; chats-changed: the sidebar badge.
+		notify: (chatId) => { emit("record-changed", { chatId }); emit("chats-changed", {}); },
+	});
+	// A settled turn or finished compaction may free a waiting sitting.
+	subscribeServerEvents((event) => {
+		if (event.type === "turn-settled" || (event.type === "compaction-changed" && !event.running)) void service.kick();
+	});
+	return service;
+})();
 
 // Wake-pipeline wiring (contracts.ts "THE ASYNC PROTOCOL" §4): the pipeline
 // delivers its steers through THIS composition root (one event: the steer

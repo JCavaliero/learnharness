@@ -10,6 +10,7 @@
  * (components/offline/offline-sync.ts) through applyOfflineBundle below.
  */
 import type { ChatKind } from "./contracts/chat.ts";
+import type { AttemptRecord, PracticeItem } from "./offline-practice.ts";
 
 /** One session as the offline view reads it. */
 export interface OfflineSessionDoc {
@@ -22,6 +23,10 @@ export interface OfflineSessionDoc {
 	rev: string;
 	/** sessionMarkdown(..., { reading: true }) — the whole transcript. */
 	markdown: string;
+	/** Replayable practice items (wave B), transcript order. */
+	practice: PracticeItem[];
+	/** Offline attempts already recorded in this session's history. */
+	attempts: AttemptRecord[];
 }
 
 /** One imported-notes source as the offline view reads it. */
@@ -50,6 +55,9 @@ export interface OfflineBundle {
 	notes: OfflineNoteDoc[];
 	removedSessions: string[];
 	removedNotes: string[];
+	/** Attempts the server holds that are not in a history yet (grading,
+	 *  waiting for their session, or failed) — always the full list. */
+	pendingAttempts: AttemptRecord[];
 }
 
 /** Upper bound on ids per kind in a request (a defensive parse cap). */

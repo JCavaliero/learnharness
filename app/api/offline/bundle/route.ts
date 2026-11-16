@@ -5,7 +5,7 @@
  * notes (import-time snapshots) in full, plus the ids that no longer exist.
  * See src/core/offline.ts. POST, not GET: the held-rev map can be long.
  */
-import { buildOfflineBundle, sourceDirectory, stores } from "@/src/server";
+import { buildOfflineBundle, offlinePractice, sourceDirectory, stores } from "@/src/server";
 import { parseOfflineBundleRequest } from "@/src/core";
 
 export const dynamic = "force-dynamic";
@@ -20,6 +20,7 @@ export async function POST(request: Request): Promise<Response> {
 		chatStore: stores.chatStore,
 		sourceTextStore: stores.sourceTextStore,
 		readSourceDirectory: () => sourceDirectory.read(),
+		pendingAttempts: () => offlinePractice.pendingAttemptRecords(),
 	});
 	return Response.json(bundle, { headers: { "Cache-Control": "no-store" } });
 }

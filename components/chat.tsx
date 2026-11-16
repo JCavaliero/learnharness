@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, Fragment, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { OfflinePracticeCard, OfflineResultsNotice } from "@/components/offline/offline-practice-card";
 import { usePathname } from "next/navigation";
 import { useChatSession } from "@/components/session";
 import { usePlugins } from "./plugins";
@@ -1796,6 +1797,8 @@ export function Chat({
 											}
 											case "data-practice-thinking":
 												return <ThinkingCard key={pi} data={part.data as PracticeThinkingData} />;
+											case "data-offline-practice":
+												return <OfflinePracticeCard key={pi} data={part.data} />;
 											case "data-practice-next":
 												// The learner's move-on signal (owner round 16): a compact
 												// centered mono-caps line — chrome, the dismissal register.
@@ -2006,6 +2009,9 @@ export function Chat({
 								<PendingTurnIndicator evaluating={evaluating} />
 							)}
 							{openingError && <p role="alert" className="text-sm text-destructive">{OPENING_PROMPT_FAILURE}</p>}
+							{/* Offline practice (wave B): grading of this session's tablet
+							    answers gave up — bottom of the transcript, with Retry. */}
+							<OfflineResultsNotice chatId={chatId} />
 							{error && (
 								<div className="flex items-center justify-between gap-3 rounded-lg border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm">
 									<span>Something went wrong: {error.message}</span>

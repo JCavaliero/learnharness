@@ -4,13 +4,18 @@
  * store (last sync time). Plain IndexedDB — no dependency. Every call
  * opens, works, and closes; the copy is small and syncs are rare.
  */
-import type { OfflineBundle, OfflineCopy, OfflineNoteDoc, OfflineSessionDoc } from "@/src/core";
+import type { AttemptRecord, DeviceAttempt, OfflineBundle, OfflineCopy, OfflineNoteDoc, OfflineSessionDoc } from "@/src/core";
 
 const DB_NAME = "lh-offline";
-const DB_VERSION = 1;
+const DB_VERSION = 2; // 2: local practice attempts (wave B)
 const SESSIONS = "sessions";
 const NOTES = "notes";
 const META = "meta";
+const ATTEMPTS = "attempts";
+
+/** An answer given on this device; `uploaded` once the server accepted
+ *  it. Deleted when a bundle lists it (the server holds it then). */
+export type LocalAttempt = DeviceAttempt & { uploaded?: boolean };
 
 export interface OfflineMeta {
 	/** ISO — the server's generatedAt of the last applied bundle. */
@@ -44,6 +49,7 @@ function open(): Promise<IDBDatabase> {
 			if (!db.objectStoreNames.contains(SESSIONS)) db.createObjectStore(SESSIONS, { keyPath: "id" });
 			if (!db.objectStoreNames.contains(NOTES)) db.createObjectStore(NOTES, { keyPath: "id" });
 			if (!db.objectStoreNames.contains(META)) db.createObjectStore(META);
+			if (!db.objectStoreNames.contains(ATTEMPTS)) db.createObjectStore(ATTEMPTS, { keyPath: "id" });
 		};
 		req.onsuccess = () => resolve(req.result);
 		req.onerror = () => reject(req.error);
@@ -78,6 +84,7 @@ export function storeOfflineBundle(bundle: OfflineBundle): Promise<void> {
 		for (const doc of bundle.sessions) sessions.put(doc);
 		for (const doc of bundle.notes) notes.put(doc);
 		tx.objectStore(META).put(bundle.generatedAt, "lastSyncAt");
+		tx.objectStore(META).put(bundle.pendingAttempts ?? [], "pendingAttempts");
 		await done(tx);
 	});
 }
@@ -91,13 +98,57 @@ export function loadOfflineMeta(): Promise<OfflineMeta> {
 	});
 }
 
-/** Wipes this device's offline copy (settings → Clear offline data). */
+/** Wipes this device's offline copy (settings → Clear offline data),
+ *  unsent answers included — the settings row warns first. */
 export function clearOfflineCopy(): Promise<void> {
 	return withDb(async (db) => {
-		const tx = db.transaction([SESSIONS, NOTES, META], "readwrite");
+		const tx = db.transaction([SESSIONS, NOTES, META, ATTEMPTS], "readwrite");
 		tx.objectStore(SESSIONS).clear();
 		tx.objectStore(NOTES).clear();
 		tx.objectStore(META).clear();
+		tx.objectStore(ATTEMPTS).clear();
+		await done(tx);
+	});
+}
+
+/** Attempts the server holds but has not recorded in a history yet. */
+export function loadPendingAttempts(): Promise<AttemptRecord[]> {
+	return withDb(async (db) => {
+		const tx = db.transaction(META, "readonly");
+		const list = await request(tx.objectStore(META).get("pendingAttempts") as IDBRequest<AttemptRecord[] | undefined>);
+		await done(tx);
+		return list ?? [];
+	});
+}
+
+export function listLocalAttempts(): Promise<LocalAttempt[]> {
+	return withDb(async (db) => {
+		const tx = db.transaction(ATTEMPTS, "readonly");
+		const list = await request(tx.objectStore(ATTEMPTS).getAll() as IDBRequest<LocalAttempt[]>);
+		await done(tx);
+		return list;
+	});
+}
+
+export function saveLocalAttempt(attempt: LocalAttempt): Promise<void> {
+	return withDb(async (db) => {
+		const tx = db.transaction(ATTEMPTS, "readwrite");
+		tx.objectStore(ATTEMPTS).put(attempt);
+		await done(tx);
+	});
+}
+
+/** Marks some attempts uploaded and deletes others, in one transaction. */
+export function updateLocalAttempts(uploaded: readonly string[], remove: readonly string[]): Promise<void> {
+	return withDb(async (db) => {
+		const tx = db.transaction(ATTEMPTS, "readwrite");
+		const store = tx.objectStore(ATTEMPTS);
+		for (const id of remove) store.delete(id);
+		for (const id of uploaded) {
+			if (remove.includes(id)) continue;
+			const req = store.get(id) as IDBRequest<LocalAttempt | undefined>;
+			req.onsuccess = () => { if (req.result) store.put({ ...req.result, uploaded: true }); };
+		}
 		await done(tx);
 	});
 }

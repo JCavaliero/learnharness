@@ -7,7 +7,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { MenuShell } from "@/components/menu-shell";
 import { DeleteSessionDialog } from "@/components/delete-session-dialog";
 import type { ChatDeleteMode, ThemeMode } from "@/src/core";
-import { DumbbellIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, PlusIcon, SearchIcon, SettingsIcon } from "lucide-react";
+import { DumbbellIcon, PanelLeftCloseIcon, PanelLeftOpenIcon, PlusIcon, RepeatIcon, SearchIcon, SettingsIcon } from "lucide-react";
 import { ActivitySection } from "@/components/activity-dock";
 import { CoverageMenuBlock } from "@/components/extraction-coverage";
 import { LhMark } from "@/components/lh-mark";
@@ -288,6 +288,7 @@ function sessionMeta(chat: ChatListItem): string {
 		return `Problem waiting · ${timeAgo(chat.updatedAt)}`;
 	}
 	if (chat.busy) return "Working…";
+	if (chat.pendingOfflineResults) return `Offline results pending · ${timeAgo(chat.updatedAt)}`;
 	return timeAgo(chat.updatedAt);
 }
 
@@ -722,6 +723,19 @@ function SessionsSidebar() {
 						<DumbbellIcon className="size-3 shrink-0" />
 						<span className="min-w-0 truncate">Practice</span>
 						<span className="sr-only">create a new practice session</span>
+					</button>
+					{/* Offline practice (wave B): the Leitner review queue, the
+					    same page the tablet uses offline. */}
+					<button
+						type="button"
+						data-testid="open-review"
+						title="Review"
+						onClick={() => router.push("/offline?tab=practice")}
+						className="flex min-w-0 w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-xs uppercase tracking-wider text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+					>
+						<RepeatIcon className="size-3 shrink-0" />
+						<span className="min-w-0 truncate">Review</span>
+						<span className="sr-only">open the practice review queue</span>
 					</button>
 				</PluginSidebarActions>
 
